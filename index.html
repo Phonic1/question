@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Chat: Statement or Question?</title>
+    <link href="https://fonts.cdnfonts.com/css/minecraftia" rel="stylesheet">
+    <style>
+        body {
+            background-color: #3c2f2f; /* Dirt block brown fallback */
+            background-image: url('https://minecraft.wiki/images/Grass_Block.png');
+            background-size: cover;
+            background-attachment: fixed;
+            color: #F0F0F0; /* Off-white for readability */
+            font-family: 'Minecraftia', 'Courier New', Courier, monospace;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            position: relative;
+        }
+        body::before { /* Dark overlay for background */
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4); /* Semi-transparent dark overlay */
+            z-index: -1;
+        }
+        h1 {
+            font-size: 2.5vw;
+            text-shadow: 2px 2px #000;
+            margin-bottom: 20px;
+            color: #FFFFFF;
+        }
+        #game-container {
+            background-color: #6B6B6B; /* Solid stone gray */
+            padding: 20px;
+            border: 4px solid #333;
+            border-radius: 10px;
+            max-width: 600px;
+            width: 90%;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.7);
+            position: relative;
+            z-index: 1;
+        }
+        #sentence {
+            font-size: 1.8vw;
+            margin-bottom: 20px;
+            background-color: #1C2526; /* Darker background for sentence */
+            padding: 15px;
+            border: 2px solid #FFFFFF;
+            color: #F0F0F0;
+            text-shadow: 1px 1px #000;
+        }
+        .button {
+            background-image: url('https://minecraft.wiki/images/Crafting_Table.png');
+            background-size: cover;
+            background-color: rgba(0, 0, 0, 0.5); /* Dark overlay for button text contrast */
+            color: #FFFFFF;
+            border: 2px solid #000;
+            padding: 12px 24px;
+            margin: 10px;
+            font-size: 1.5vw;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            min-width: 120px;
+            text-shadow: 1px 1px #000;
+        }
+        .button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 10px #FFFFFF;
+        }
+        .button:active {
+            transform: scale(0.95);
+        }
+        #feedback {
+            font-size: 1.5vw;
+            margin: 20px 0;
+            opacity: 0;
+            animation: fadeIn 0.5s forwards;
+        }
+        #score {
+            font-size: 1.5vw;
+            margin-top: 20px;
+            color: #FFD700; /* Gold for score */
+            text-shadow: 1px 1px #000;
+        }
+        #progress {
+            font-size: 1.2vw;
+            margin-bottom: 20px;
+            color: #FFFFFF;
+            text-shadow: 1px 1px #000;
+        }
+        #progress-bar-container {
+            width: 80%;
+            background-color: #333;
+            border: 2px solid #000;
+            border-radius: 5px;
+            margin: 0 auto 20px;
+        }
+        #progress-bar {
+            height: 20px;
+            background-color: #00FF7F; /* Emerald green */
+            width: 0%;
+            transition: width 0.3s;
+        }
+        #game-over {
+            display: none;
+            font-size: 2vw;
+            color: #FFD700;
+            text-shadow: 1px 1px #000;
+            margin-top: 20px;
+        }
+        #sound-toggle {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: #4B8B3B; /* Darker green for toggle */
+            background-image: none;
+            border: 2px solid #000;
+            padding: 8px 16px;
+            color: #FFFFFF;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @media (max-width: 600px) {
+            h1, #sentence, #feedback, #score, #progress, #game-over, .button {
+                font-size: 4vw;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button id="sound-toggle" class="button" onclick="toggleSound()" aria-label="Toggle sound">Sound: ON</button>
+    <h1>Minecraft Chat: Statement or Question?</h1>
+    <div id="game-container">
+        <div id="progress">Question <span id="question-number">1</span> of 50</div>
+        <div id="progress-bar-container">
+            <div id="progress-bar"></div>
+        </div>
+        <div id="sentence" role="region" aria-live="polite"></div>
+        <button class="button" onclick="checkAnswer('statement')" aria-label="Select Statement">Statement</button>
+        <button class="button" onclick="checkAnswer('question')" aria-label="Select Question">Question</button>
+        <div id="feedback" role="alert"></div>
+        <button class="button" id="next-button" onclick="nextSentence()" style="display: none;" aria-label="Next question">Next</button>
+        <div id="score">Score: 0</div>
+        <div id="game-over">
+            Game Over! Final Score: <span id="final-score"></span><br>
+            <button class="button" onclick="restartGame()" aria-label="Restart game">Play Again</button>
+        </div>
+    </div>
+
+    <audio id="correct-sound" src="https://minecraft.wiki/sounds/en/villager_yes.mp3"></audio>
+    <audio id="incorrect-sound" src="https://minecraft.wiki/sounds/en/zombie_hurt.mp3"></audio>
+
+    <script>
+        const sentences = [
+            { text: "I built a secret base under the mountain.", type: "statement" },
+            { text: "Did you see my diamond sword?", type: "question" },
+            { text: "There's a skeleton near the cave.", type: "statement" },
+            { text: "Can you help me build this house?", type: "question" },
+            { text: "I'm using diamond tools now.", type: "statement" },
+            { text: "Where are all the Ender Pearls?", type: "question" },
+            { text: "I found a village with a blacksmith.", type: "statement" },
+            { text: "Have you seen any creepers around?", type: "question" },
+            { text: "My dog is following me everywhere.", type: "statement" },
+            { text: "Is there any lava in this cave?", type: "question" },
+            { text: "I crafted a new shield today.", type: "statement" },
+            { text: "Do you know where the Nether Portal is?", type: "question" },
+            { text: "The Enderman stole my block!", type: "statement" },
+            { text: "Can we trade some emeralds?", type: "question" },
+            { text: "I found a dungeon with a spawner.", type: "statement" },
+            { text: "Have you got any spare iron?", type: "question" },
+            { text: "My farm has tons of wheat now.", type: "statement" },
+            { text: "Where did I park my horse?", type: "question" },
+            { text: "I built a rollercoaster in my base.", type: "statement" },
+            { text: "Is the server down right now?", type: "question" },
+            { text: "I just tamed a wolf!", type: "statement" },
+            { text: "Can you show me your redstone contraption?", type: "question" },
+            { text: "The creeper blew up my house.", type: "statement" },
+            { text: "Do you have any enchanted books?", type: "question" },
+            { text: "I’m mining at level 11.", type: "statement" },
+            { text: "Where’s the nearest desert biome?", type: "question" },
+            { text: "My castle has a moat now.", type: "statement" },
+            { text: "Have you fought the Wither yet?", type: "question" },
+            { text: "I found a stronghold underground.", type: "statement" },
+            { text: "Can I borrow your pickaxe?", type: "question" },
+            { text: "The villagers are trading pumpkins.", type: "statement" },
+            { text: "Is there a jungle nearby?", type: "question" },
+            { text: "I crafted a full set of armor.", type: "statement" },
+            { text: "Do you know how to make a beacon?", type: "question" },
+            { text: "My boat sank in the ocean.", type: "statement" },
+            { text: "Have you seen my pet parrot?", type: "question" },
+            { text: "I built a giant treehouse.", type: "statement" },
+            { text: "Can we team up to fight zombies?", type: "question" },
+            { text: "The Nether is full of piglins.", type: "statement" },
+            { text: "Where did I leave my chest?", type: "question" },
+            { text: "I enchanted my bow with Infinity.", type: "statement" },
+            { text: "Is the Ender Dragon still alive?", type: "question" },
+            { text: "My minecart track is complete.", type: "statement" },
+            { text: "Do you have any spare torches?", type: "question" },
+            { text: "I found a rare pink sheep!", type: "statement" },
+            { text: "Can you help me find diamonds?", type: "question" },
+            { text: "My house is made of quartz.", type: "statement" },
+            { text: "Have you been to the End?", type: "question" },
+            { text: "I built an automatic farm.", type: "statement" },
+            { text: "Where’s the best place to fish?", type: "question" },
+            { text: "I just brewed some potions.", type: "statement" }
+        ];
+
+        let currentSentence = null;
+        let score = 0;
+        let questionCount = 0;
+        const maxQuestions = 50;
+        let answered = false;
+        let soundEnabled = true;
+
+        const feedbackMessages = {
+            correct: [
+                "Nice one, Steve!",
+                "You nailed it like a diamond pickaxe!",
+                "Awesome, you’re a Minecraft master!",
+                "Hrmm! That’s right! (Villager approved)"
+            ],
+            incorrect: [
+                "Ouch, hit by a creeper! Try again.",
+                "Not quite, adventurer!",
+                "Oh no, you fell in lava!",
+                "Argh, zombie got you! It’s a {type}."
+            ]
+        };
+
+        // NEW: Function to speak text using the browser's speech synthesis
+        function speak(text) {
+            if (soundEnabled && 'speechSynthesis' in window) {
+                // Stop any currently speaking announcements before starting a new one
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function getRandomSentence() {
+            if (sentences.length < maxQuestions) {
+                console.warn("Not enough unique sentences for 50 questions!");
+            }
+            const availableSentences = sentences.filter(s => !s.used);
+            if (availableSentences.length === 0) {
+                sentences.forEach(s => s.used = false);
+                return getRandomSentence();
+            }
+            const index = Math.floor(Math.random() * availableSentences.length);
+            const sentence = availableSentences[index];
+            sentence.used = true;
+            return sentence;
+        }
+
+        function displaySentence() {
+            if (questionCount >= maxQuestions) {
+                showGameOver();
+                return;
+            }
+            currentSentence = getRandomSentence();
+            document.getElementById("sentence").textContent = currentSentence.text;
+            document.getElementById("feedback").textContent = "";
+            document.getElementById("feedback").style.color = "#F0F0F0"; // Reset feedback color
+            document.getElementById("next-button").style.display = "none";
+            document.getElementById("question-number").textContent = questionCount + 1;
+            document.getElementById("progress-bar").style.width = `${(questionCount / maxQuestions) * 100}%`;
+            answered = false;
+        }
+
+        function checkAnswer(userAnswer) {
+            if (answered) return;
+            answered = true;
+            questionCount++;
+            const feedback = document.getElementById("feedback");
+            const correctSound = document.getElementById("correct-sound");
+            const incorrectSound = document.getElementById("incorrect-sound");
+
+            if (userAnswer === currentSentence.type) {
+                score++;
+                const message = feedbackMessages.correct[Math.floor(Math.random() * feedbackMessages.correct.length)];
+                feedback.textContent = message;
+                feedback.style.color = "#32CD32"; // Bright green for correct
+                if (soundEnabled) correctSound.play().catch(() => {});
+                speak(message); // UPDATED: Speak the correct feedback
+            } else {
+                const rawMessage = feedbackMessages.incorrect[Math.floor(Math.random() * feedbackMessages.incorrect.length)];
+                const finalMessage = rawMessage.replace("{type}", currentSentence.type);
+                feedback.textContent = finalMessage;
+                feedback.style.color = "#FF4040"; // Softer red for incorrect
+                if (soundEnabled) incorrectSound.play().catch(() => {});
+                speak(finalMessage); // UPDATED: Speak the incorrect feedback
+            }
+
+            document.getElementById("score").textContent = `Score: ${score}`;
+            if (questionCount < maxQuestions) {
+                document.getElementById("next-button").style.display = "inline-block";
+            } else {
+                showGameOver();
+            }
+        }
+
+        function nextSentence() {
+            // UPDATED: Stop any speech before loading the next sentence
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            displaySentence();
+        }
+
+        function showGameOver() {
+            document.getElementById("game-container").style.display = "none";
+            const gameOver = document.getElementById("game-over");
+            gameOver.style.display = "block";
+            document.getElementById("final-score").textContent = score;
+            speak(`Game Over! Your final score is ${score}`); // UPDATED: Announce final score
+        }
+
+        function restartGame() {
+            // UPDATED: Stop any speech before restarting
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+            score = 0;
+            questionCount = 0;
+            sentences.forEach(s => s.used = false);
+            document.getElementById("game-container").style.display = "block";
+            document.getElementById("game-over").style.display = "none";
+            document.getElementById("score").textContent = `Score: ${score}`;
+            displaySentence();
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            document.getElementById("sound-toggle").textContent = `Sound: ${soundEnabled ? "ON" : "OFF"}`;
+            // If turning sound off, stop any current speech.
+            if (!soundEnabled && 'speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        // Keyboard controls
+        document.addEventListener("keydown", (event) => {
+            if (!answered && event.key.toLowerCase() === "s") checkAnswer("statement");
+            if (!answered && event.key.toLowerCase() === "q") checkAnswer("question");
+            if (answered && event.key.toLowerCase() === "n") nextSentence();
+            if (event.key.toLowerCase() === "t") toggleSound();
+        });
+
+        // Initialize game
+        displaySentence();
+    </script>
+</body>
+</html>
